@@ -29,19 +29,19 @@ done
 
 while true; do
     echo "Select the package manager:"
-    echo "1) $(print_manager pacman)"
-    echo "2) $(print_manager flatpak)"
-#    echo "3) $(print_manager aur)"
-    echo "0) $(print_manager all)"
-    read -p "Please select (0-2): " choice
+    echo "1) $(print_manager "pacman")"
+    echo "2) $(print_manager "flatpak")"
+    echo "3) $(print_manager "aur")"
+    echo "0) $(print_manager "all")"
+    read -p "Please select (0-3): " choice
 
     case "$choice" in
         1) selected_package_manager="pacman";
            break ;;
         2) selected_package_manager="flatpak";
            break ;;
-        #3) selected_package_manager="aur";
-        #   break ;;
+        3) selected_package_manager="aur";
+           break ;;
         0) selected_package_manager="all";
            break ;;
         *) echo "❌ Invalid choose. Try again" ;;
@@ -97,8 +97,9 @@ echo "Package age: $selection_time_text"
 echo ""
 filtered_pacman_packages=$(updatable_pacman_packages "$selected_time")
 filtered_flatpak_packages=$(updatable_flatpak_packages "$selected_time")
+filtered_aur_packages=$(updatable_aur_packages "$selected_time")
 
-if [ -z "$filtered_pacman_packages" ] && [ -z "$filtered_flatpak_packages" ]; then
+if [ -z "$filtered_pacman_packages" ] && [ -z "$filtered_flatpak_packages" ] && [ -z "$filtered_aur_packages" ]; then
     echo ""
     echo "❌ No package found for your selected date and package manager"
     exit 0
@@ -106,8 +107,9 @@ fi
 
 echo ""
 echo "📋 Following packages will be updated:"
-if is_manager "pacman"; then echo "$(print_manager pacman): $filtered_pacman_packages"; fi
-if is_manager "flatpak"; then echo "$(print_manager flatpak): $filtered_flatpak_packages"; fi
+if is_manager "pacman"; then echo "$(print_manager "pacman"): $filtered_pacman_packages"; fi
+if is_manager "flatpak"; then echo "$(print_manager "flatpak"): $filtered_flatpak_packages"; fi
+if is_manager "aur"; then echo "$(print_manager "aur"): $filtered_aur_packages"; fi
 
 if [ "$dry_run" = true ]; then
     echo ""
@@ -120,7 +122,8 @@ if [ "$force" = true ]; then
     echo "⚡ Force Modus: force updating all packages"
     update_pacman_packages "$filtered_pacman_packages"
     update_flatpak_packages "$filtered_flatpak_packages"
+    update_aur_packages "$filtered_aur_packages"
     exit 0
 fi
 
-appy_update "$filtered_pacman_packages" "$filtered_flatpak_packages"
+appy_update "$filtered_pacman_packages" "$filtered_flatpak_packages" "$filtered_aur_packages"
