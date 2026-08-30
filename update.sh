@@ -2,7 +2,7 @@
 
 SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
 SCRIPT_DIR="$(dirname "$SCRIPT_PATH")"
-source "$SCRIPT_DIR/functions.sh"
+source "$SCRIPT_DIR/functions/_include.sh"
 
 dry_run=false
 force=false
@@ -11,12 +11,10 @@ while [ "$#" -ge 1 ]; do
     case "$1" in
         --dryRun)
             dry_run=true
-            echo "🔍 use dry mode"
             shift
             ;;
         -f|--force)
             force=true
-            echo "⚡ use force mode"
             shift
             ;;
         *)
@@ -91,6 +89,8 @@ done
 
 echo ""
 echo "Your selection: "
+if $dry_run; then echo "🔍 use dry mode"; fi
+if $force; then echo "⚡ use force mode"; fi
 echo "Package manager: $(print_manager "$selected_package_manager")"
 echo "Package age: $selection_time_text"
 
