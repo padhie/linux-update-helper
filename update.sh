@@ -1,21 +1,12 @@
 #!/bin/bash
 
-# Dry-Run Modus (Standard: false)
+SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(dirname "$SCRIPT_PATH")"
+source "$SCRIPT_DIR/functions.sh"
+
 dry_run=false
-# Force Modus (Standard: false)
 force=false
 
-# Funktion zum Aktualisieren von Paketen
-update_packages() {
-    local packages="$1"
-    for pkg in $packages; do
-        echo "🔄 Update $pkg..."
-        sudo pacman -S "$pkg" --noconfirm
-    done
-    echo "✅ Update done!"
-}
-
-# Argumentprüfung
 while [ "$#" -ge 1 ]; do
     case "$1" in
         --dryRun)
@@ -36,15 +27,29 @@ while [ "$#" -ge 1 ]; do
     esac
 done
 
-# Liste aller aktualisierbaren Pakete
-upgradable_packages=$(pacman -Qu | awk '{print $1}')
-
-# Aktuelles Datum in Sekunden seit Epoch
-current_time=$(date +%s)
-
-# Interaktive Auswahl (in gewünschter Reihenfolge)
 while true; do
-    echo "Wähle eine Option:"
+    echo "Select the package manager:"
+    echo "1) $(print_manager pacman)"
+    echo "2) $(print_manager flatpak)"
+#    echo "3) $(print_manager aur)"
+    echo "0) $(print_manager all)"
+    read -p "Please select (0-2): " choice
+
+    case "$choice" in
+        1) selected_package_manager="pacman";
+           break ;;
+        2) selected_package_manager="flatpak";
+           break ;;
+        #3) selected_package_manager="aur";
+        #   break ;;
+        0) selected_package_manager="all";
+           break ;;
+        *) echo "❌ Invalid choose. Try again" ;;
+    esac
+done
+
+while true; do
+    echo "Select the package age:"
     echo "1) 3 Months"
     echo "2) 2 Months"
     echo "3) 1 Month (30 Days)"
@@ -57,97 +62,65 @@ while true; do
 
     case "$choice" in
         0) selected_time=0;
-           selection_text="now";
+           selection_time_text="now";
            break ;;
         1) selected_time=$((90 * 24 * 60 * 60));
-           selection_text="3 Months";
+           selection_time_text="3 Months";
            break ;;
         2) selected_time=$((60 * 24 * 60 * 60));
-           selection_text="2 Months";
+           selection_time_text="2 Months";
            break ;;
         3) selected_time=$((30 * 24 * 60 * 60));
-           selection_text="1 Month (30 Days)";
+           selection_time_text="1 Month (30 Days)";
            break ;;
         4) selected_time=$((28 * 24 * 60 * 60));
-           selection_text="4 Weeks ( 28 Days)";
+           selection_time_text="4 Weeks ( 28 Days)";
            break ;;
         5) selected_time=$((21 * 24 * 60 * 60));
-           selection_text="3 Weeks";
+           selection_time_text="3 Weeks";
            break ;;
         6) selected_time=$((14 * 24 * 60 * 60));
-           selection_text="2 Weeks";
+           selection_time_text="2 Weeks";
            break ;;
         7) selected_time=$((7 * 24 * 60 * 60));
-           selection_text="1 Week";
+           selection_time_text="1 Week";
            break ;;
         *) echo "❌ Invalid choose. Try again" ;;
     esac
 done
 
 echo ""
-echo "Your selection: $selection_text"
+echo "Your selection: "
+echo "Package manager: $(print_manager "$selected_package_manager")"
+echo "Package age: $selection_time_text"
 
-# Pakete filtern und anzeigen
-filtered_packages=""
-for pkg in $upgradable_packages; do
-    # pacman -Qi ist lokalisiert -> LC_ALL=C erzwingt englische Feldnamen und ein
-    # von `date -d` parsebares Datumsformat
-    pkg_info=$(LC_ALL=C pacman -Qi "$pkg" 2>/dev/null)
+echo ""
+filtered_pacman_packages=$(updatable_pacman_packages "$selected_time")
+filtered_flatpak_packages=$(updatable_flatpak_packages "$selected_time")
 
-    # Installationsdatum in Sekunden seit Epoch
-    install_date_raw=$(echo "$pkg_info" | awk -F' : ' '/^Install Date/ {print $2}')
-    install_date=$(date -d "$install_date_raw" +%s 2>/dev/null)
-
-    if [ -z "$install_date" ]; then
-        echo "⚠️ Installdate for $pkg not found, skipped..."
-        continue
-    fi
-
-    time_since_install=$((current_time - install_date))
-
-    if [ "$selected_time" -eq 0 ] || [ "$time_since_install" -ge "$selected_time" ]; then
-        days_old=$((time_since_install / 86400))
-        version=$(echo "$pkg_info" | awk -F' : ' '/^Version/ {print $2}')
-        echo "📦 $pkg (install for $days_old days, Version: $version)"
-        if [ -z "$filtered_packages" ]; then
-            filtered_packages="$pkg"
-        else
-            filtered_packages="$filtered_packages $pkg"
-        fi
-    fi
-done
-
-# Bestätigung einholen
-if [ -z "$filtered_packages" ]; then
-    echo "❌ No package found with your selected date"
+if [ -z "$filtered_pacman_packages" ] && [ -z "$filtered_flatpak_packages" ]; then
+    echo ""
+    echo "❌ No package found for your selected date and package manager"
     exit 0
 fi
 
+echo ""
 echo "📋 Following packages will be updated:"
-echo "$filtered_packages" | tr ' ' '\n'
+if is_manager "pacman"; then echo "$(print_manager pacman): $filtered_pacman_packages"; fi
+if is_manager "flatpak"; then echo "$(print_manager flatpak): $filtered_flatpak_packages"; fi
 
 if [ "$dry_run" = true ]; then
+    echo ""
     echo "🔍 Dry-Run: Skip update"
     exit 0
 fi
 
 if [ "$force" = true ]; then
+    echo ""
     echo "⚡ Force Modus: force updating all packages"
-    update_packages "$filtered_packages"
+    update_pacman_packages "$filtered_pacman_packages"
+    update_flatpak_packages "$filtered_flatpak_packages"
     exit 0
 fi
 
-while true; do
-    read -p "Do you want to udpate? [J/n] " -r
-    echo
-    case "$REPLY" in
-        y|Y|j|J|1|true|"")
-            update_packages "$filtered_packages"
-            break
-            ;;
-        *)
-            echo "🚫 Update abort"
-            break
-            ;;
-    esac
-done
+appy_update "$filtered_pacman_packages" "$filtered_flatpak_packages"
