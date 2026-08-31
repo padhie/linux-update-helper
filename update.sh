@@ -1,51 +1,24 @@
 #!/bin/bash
 
+#####
+# load dependency
+#####
 SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
 SCRIPT_DIR="$(dirname "$SCRIPT_PATH")"
 source "$SCRIPT_DIR/functions/_include.sh"
 
+#####
+# load args
+#####
 dry_run=false
 force=false
+package_manager_arg=""
+load_args "$@"
 
-while [ "$#" -ge 1 ]; do
-    case "$1" in
-        --dryRun)
-            dry_run=true
-            shift
-            ;;
-        -f|--force)
-            force=true
-            shift
-            ;;
-        *)
-            echo "❌ invalid argument: $1"
-            echo "possible arguments: $0 [--dryRun] [-f|--force]"
-            exit 1
-            ;;
-    esac
-done
+# detect package manager
+selected_package_manager=$(get_package_manager "$package_manager_arg")
 
-while true; do
-    echo "Select the package manager:"
-    echo "1) $(print_manager "pacman")"
-    echo "2) $(print_manager "flatpak")"
-    echo "3) $(print_manager "aur")"
-    echo "0) $(print_manager "all")"
-    read -p "Please select (0-3): " choice
-
-    case "$choice" in
-        1) selected_package_manager="pacman";
-           break ;;
-        2) selected_package_manager="flatpak";
-           break ;;
-        3) selected_package_manager="aur";
-           break ;;
-        0) selected_package_manager="all";
-           break ;;
-        *) echo "❌ Invalid choose. Try again" ;;
-    esac
-done
-
+# detect timerange
 while true; do
     echo "Select the package age:"
     echo "1) 3 Months"
@@ -87,6 +60,7 @@ while true; do
     esac
 done
 
+# summary
 echo ""
 echo "Your selection: "
 if $dry_run; then echo "🔍 use dry mode"; fi
@@ -94,6 +68,9 @@ if $force; then echo "⚡ use force mode"; fi
 echo "Package manager: $(print_manager "$selected_package_manager")"
 echo "Package age: $selection_time_text"
 
+#####
+# detect packages to update based on selected time
+#####
 echo ""
 filtered_pacman_packages=$(updatable_pacman_packages "$selected_time")
 filtered_flatpak_packages=$(updatable_flatpak_packages "$selected_time")
@@ -105,18 +82,27 @@ if [ -z "$filtered_pacman_packages" ] && [ -z "$filtered_flatpak_packages" ] && 
     exit 0
 fi
 
+#####
+# summary of packages to update
+#####
 echo ""
 echo "📋 Following packages will be updated:"
 if is_manager "pacman"; then echo "$(print_manager "pacman"): $filtered_pacman_packages"; fi
 if is_manager "flatpak"; then echo "$(print_manager "flatpak"): $filtered_flatpak_packages"; fi
 if is_manager "aur"; then echo "$(print_manager "aur"): $filtered_aur_packages"; fi
 
+#####
+# break if no update
+#####
 if [ "$dry_run" = true ]; then
     echo ""
     echo "🔍 Dry-Run: Skip update"
     exit 0
 fi
 
+#####
+# execute update
+#####
 if [ "$force" = true ]; then
     echo ""
     echo "⚡ Force Modus: force updating all packages"
